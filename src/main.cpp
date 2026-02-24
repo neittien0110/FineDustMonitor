@@ -1,6 +1,9 @@
 #include <U8g2lib.h>
 #include <Wire.h>
 #include <SoftwareSerial.h> // Bắt buộc phải có để dùng Serial trên D5/D6
+#include "wifi_manager.h"   // Quản lý wifi
+#include "greetingcard.h"   // Giao diện chào trên màn hình điện tử
+#include "main.h"           // Cấu hình chính
 
 // --- CẤU HÌNH SOFTWARE SERIAL CHO SDS011 ---
 // Sử dụng D5 làm RX, D6 làm TX
@@ -18,9 +21,6 @@ const int SDS_PACKET_SIZE = 10;
 /** Nội dung 1 gói tin SDS */
 byte sds_buffer[SDS_PACKET_SIZE];
 
-// Phục vụ cho đồ thị cột
-const int MAX_SAMPLES = 16;
-const int MAX_AQI_VALUE = 64;
 // Mảng lưu trữ 16 giá trị PM2.5 gần nhất. [0] là dữ liệu mới nhất
 int aqi25_history[MAX_SAMPLES] = {0};
 int aqi10_history[MAX_SAMPLES] = {0};
@@ -33,8 +33,14 @@ int sample_index = 0;
 #define VIETNAMESE_FONT u8g2_font_unifont_t_vietnamese2
 
 // --- Biến toàn cục chứa mode hoạt động --
-// 0 = giá trị tức thời, 1 = đồ thị, 2 = kết luận
-char g_mode = 0;
+// 0 = Home 1 = giá trị tức thời, 2 = đồ thị, 3 = kết luận
+#define MODE_INFO 0
+#define MODE_IMMEDIATE 1
+#define MODE_PLOT 2
+#define MODE_AQI 3
+#define MODE_NUM 4
+char g_mode = MODE_INFO;
+
 // --------------------------------------------------------
 // HÀM: Phân tích và tính toán dữ liệu từ gói 10 byte
 // --------------------------------------------------------
@@ -249,15 +255,19 @@ void setup()
   pinMode(CFG_BUTTON, INPUT_PULLUP);
 
   // 6. Mode hoạt động
-  g_mode = 0;
+  g_mode = MODE_INFO;
 
   // Màn hinh chào
-  u8g2.clearBuffer();
-  u8g2.drawUTF8(0, 12, "Máy đo bụi mịn");
-  u8g2.drawStr(12, 40, "PM2.5, PM10");
-  u8g2.sendBuffer();
+  showWelcomeScreen(u8g2, "", "");
+  
+  //Kiêm tra wifi.
+  loadWiFiConfig();
+  // Kết nối lần đầu
+  handleWiFiConnection();
+  // Màn hinh chào
+  showWelcomeScreen(u8g2, wifiStatus ? wifiSSID.c_str() : "OFF", "OFF");
 
-  delay(1500);
+  delay(3000);
 }
 
 // --------------------------------------------------------
@@ -412,7 +422,7 @@ void displayLevel()
   u8g2.drawStr(10, 10, "PM2.5  AQI  PM10");
 
   // 2. Vẽ đường phân chia ở giữa
-  u8g2.drawVLine(CENTER_X, 15, 64);
+  u8g2.drawVLine(CENTER_X, 16, 64);
 
   // --- PHẦN BÊN TRÁI: PM2.5 ---
   // 3. Giá trị thực tế
@@ -445,10 +455,14 @@ void displayLevel()
 // --------------------------------------------------------
 void loop()
 {
+
+  // WiFi được duy trì liên tục. Sễ passthough nếu thành công rồi
+  handleWiFiConnection();
+
   // Hiển thị Led chỉ thị mặc định theo nút bấm
   if (digitalRead(CFG_BUTTON) == LOW)
   {
-    g_mode = (g_mode + 1) % 3;
+    g_mode = (g_mode + 1) % MODE_NUM;
     digitalWrite(LED_BUILTIN, LOW);
     delay(200); // Tránh nhảy phím đơn giản
   }
@@ -471,11 +485,15 @@ void loop()
       parseSdsData();
       // Lưu mảng lịch sử
       updateHistory(calculateAQI(pm25_val, "PM2.5"), calculateAQI(pm10_val, "PM10"));
-      if (g_mode == 0)
+      if (g_mode == MODE_INFO)
+      {
+        showFlashConfig(u8g2);
+      }
+      else if (g_mode == MODE_IMMEDIATE)
       {
         displayData();
       }
-      else if (g_mode == 1)
+      else if (g_mode == MODE_PLOT)
       {
         plotData();
       }
