@@ -18,7 +18,7 @@ void CheckAndEstablishWiFiConnection(unsigned long interval)
         { // Nếu đang kết nối thì ngắt đi
             WiFi.disconnect();
             wifiStatus = false;
-            Serial.println("WiFi Disabled. Disconnected.");
+            Serial.println(F("WiFi Disabled. Disconnected."));
         }
         return; // Thoát luôn, không kiểm tra interval hay kết nối lại
     }
@@ -35,7 +35,7 @@ void CheckAndEstablishWiFiConnection(unsigned long interval)
         {
             WiFi.mode(WIFI_STA);
             WiFi.begin(configMgr.params.ssid.c_str(), configMgr.params.password.c_str());
-            Serial.println("Attempting to reconnect WiFi...");
+            Serial.println(F("Attempting to reconnect WiFi..."));
         }
     }
 }

@@ -5,6 +5,7 @@
 #include "WifiManager.h"    // Quản lý wifi
 #include "OledBackdrop.h"   // Giao diện chào trên màn hình điện tử
 #include "ButtonGestures.h" // Quản lý các hình thái bấm của 1 nút button
+#include "MqttManager.h"    // Gửi dữ liệu lên MQTT mặc định mqtt.toolhub.app
 #include "main.h"           // Thông tin dev
 
 // --- CẤU HÌNH SOFTWARE SERIAL CHO SDS011 ---
@@ -41,7 +42,7 @@ ButtonGesture configBtn(CFG_BUTTON);
 #define MODE_PLOT 2
 #define MODE_AQI 3
 #define MODE_NUM 4
-char g_mode = MODE_INFO;
+char g_mode;
 
 // --------------------------------------------------------
 // HÀM: Phân tích và tính toán dữ liệu từ gói 10 byte
@@ -71,8 +72,8 @@ void parseSdsData()
 
     // Gửi thông tin debug ra Serial MẶC ĐỊNH (cổng USB)
     Serial.print("PM2.5, ");
-    Serial.println(pm25_val, 1);
-    Serial.print("PM10, ");
+    Serial.print(pm25_val, 1);
+    Serial.print(", PM10, ");
     Serial.println(pm10_val, 1);
   }
   else
@@ -246,8 +247,9 @@ void setup()
   Serial.println("\nKhoi dong Wemos D1 Mini. Software Serial tren D5/D6.");
 
   // 2. Lấy cấu hình từ Flash
-  if (configMgr.begin()) {
-        configMgr.loadAll(); // Toàn bộ thông số từ LittleFS đã nằm trong configMgr.params
+  if (configMgr.begin())
+  {
+    configMgr.loadAll(); // Toàn bộ thông số từ LittleFS đã nằm trong configMgr.params
   }
 
   // 3. Cấu hình OSD
@@ -267,13 +269,19 @@ void setup()
   // 7. Nút bấm
   configBtn.begin();
 
-  // 8. Mode hoạt động
-  g_mode = MODE_INFO;
+  // 8. Mode hoạt động đầu tiên
+  g_mode = MODE_AQI;
 
-  // Kết nối lần đầu
-  CheckAndEstablishWiFiConnection();
+  // 9. Bắt đầu khởi tạo internet
+  if (configMgr.params.wifiEnabled) {
+    // Kết nối lần đầu
+    CheckAndEstablishWiFiConnection();
 
-  delay(3000);
+    // Thiết lập MQTT
+    mqttMgr.setup(); // Khởi tạo MQTT (set server, callback, topic)
+  }
+
+  delay(2000);
 }
 
 // --------------------------------------------------------
@@ -464,6 +472,11 @@ void loop()
 
   // WiFi được duy trì liên tục. Sễ passthough nếu thành công rồi
   CheckAndEstablishWiFiConnection();
+  // Duy trì kết nối MQTT
+  if (wifiStatus)
+  {
+    mqttMgr.loop();
+  }
 
   // Kiểm tra sự kiện phím bấm
   ButtonEvent evt = configBtn.update();
@@ -476,16 +489,19 @@ void loop()
   }
   else if (evt == DOUBLE_CLICK and g_mode == MODE_INFO)
   {
-    if (configMgr.params.wifiEnabled) {
+    if (configMgr.params.wifiEnabled)
+    {
       Serial.println("Tắt WiFi");
       ShutdownWiFi();
-    } else {
+    }
+    else
+    {
       Serial.println("Bật WiFi");
       WakeupWiFi();
       // hàm  handleWiFiConnection(); sẽ làm nốt phần việc còn lại ở đầu vòng lắp
-
     }
-  } else if (evt == LONG_PRESS_2S)
+  }
+  else if (evt == LONG_PRESS_2S)
   {
     Serial.println("Giu 2s: Đăng kí WiFi");
     showAPConfig(u8g2);
@@ -508,7 +524,7 @@ void loop()
       updateHistory(calculateAQI(pm25_val, "PM2.5"), calculateAQI(pm10_val, "PM10"));
       if (g_mode == MODE_INFO)
       {
-        showFlashConfig(u8g2);
+        showFlashConfig(u8g2, (mqttMgr.isLastConnectionToBrokerOk()?"MQTT Ok":"MQTT dis"));
       }
       else if (g_mode == MODE_IMMEDIATE)
       {
@@ -521,6 +537,12 @@ void loop()
       else
       {
         displayLevel();
+      }
+
+      // Guiwr thông tin lên MQTT
+      if (wifiStatus)
+      {
+        mqttMgr.publishText(pm25_val, aqi25_history[0], pm10_val, aqi10_history[0]);
       }
     }
     else

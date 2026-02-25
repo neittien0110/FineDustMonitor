@@ -2,7 +2,7 @@
 #define MAIN_H
 
 // Thông tin phiên bản
-#define FIRMWARE_VERSION "2.0.1"
+#define FIRMWARE_VERSION "2.2"
 #define DEVICE_NAME      "AIR MONITOR"
 
 // Các cấu hình ngưỡng hiển thị (Nếu cần dùng chung)

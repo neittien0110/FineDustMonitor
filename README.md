@@ -129,19 +129,149 @@ Cảm biến SDS011 gửi một gói tin 10 byte qua Serial. Chương trình th�
 
 ```mermaid
    graph TD
-    A[Khởi động Setup] --> B[Tải cấu hình từ Flash/LittleFS]
-    B --> C[Hiển thị màn hình chào]
-    C --> D{Vòng lặp Loop}
-    D --> E[Kiểm tra Nút bấm]
-    D --> F[Đọc Serial SDS011]
-    
-    E -- Nhấn đơn --> E1[Chuyển Mode hiển thị]
-    E -- Giữ 2s --> E2[Mở chế độ Cấu hình WiFi]
-    
-    F -- Có dữ liệu mới --> G[Giải mã 10 byte]
-    G --> H[Tính toán AQI & Cập nhật Lịch sử]
-    H --> I[Cập nhật màn hình theo Mode hiện tại]
-    
-    D --> J[Duy trì kết nối WiFi ngầm]
+    %% Định nghĩa Style cho các khối WiFi
+    classDef wifiStyle fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef mainStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+
+    subgraph Main_App [main.cpp]
+        A[setup] --> B[loadAll Config]
+        B --> C[Hiển thị Welcome]
+        C --> D{loop}
+        
+        D --> E[Kiểm tra Nút bấm]
+        D --> F[Kiểm tra Serial.available]
+        D --> G[Đọc dữ liệu SDS011]
+        D --> J[Quản lý kết nối WiFi]
+    end
+
+    subgraph WiFi_Manager [WiFiManager.cpp]
+        direction TB
+        RW{RegisterWiFi}
+        J -.-> JW[CheckAndEstablishWiFiConnection]
+        JW -- wifiEnabled --> STA[Kết nối Station]
+        
+        E -.-> RW
+        F -.-> RW
+        
+        RW -- method: SERIAL --> ES
+        RW -- method: SELF_STATION --> SE
+    end
+
+    subgraph Serial_Service [WiFiEnrollBySerial.cpp]
+        ES[EnrollBySerial]
+        subgraph Serial_Loop [Vòng lặp chặn]
+            L1[Đọc ssid/pass/id]
+            L1 -- exit --> ExitES[Kết thúc]
+        end
+        ES --> Serial_Loop
+    end
+
+    subgraph Web_Service [WiFiSelfEnroll.cpp]
+        SE[WiFiSelfEnroll::setup]
+        subgraph Web_Portal [Chế độ AP Mode]
+            P1[Phát WiFi AP]
+            P2[Chạy WebServer]
+            P2 -- Submit --> SaveW[Cập nhật Params]
+        end
+        SE --> Web_Portal
+    end
+
+    subgraph Config_Storage [ConfigManager.cpp]
+        B --> FS[(LittleFS)]
+        L1 --> CM[setWiFiConfig / setDeviceID]
+        SaveW --> CM
+        CM --> FS
+    end
+
+    subgraph Display_Module [OledBackdrop.cpp]
+        C --> OLED[Màn hình OLED]
+        E -- Nhấn đơn --> M1[Chuyển Mode hiển thị]
+        G --> OLED
+    end
+
+    %% Gán Style
+    class WiFi_Manager,Serial_Service,Web_Service wifiStyle;
+    class Main_App mainStyle;
+
+    %% Tạo hiệu ứng chuyển động cho các mũi tên quan trọng (Link ID dựa trên thứ tự xuất hiện)
+    %% 0: A->B, 1: B->C, 2: C->D, 3: D->E, 4: D->F, 5: D->G, 6: D->J...
+    linkStyle 3,4,5,6 stroke:#2962ff,stroke-width:2px,stroke-dasharray: 5;
+    linkStyle 7,8,9,10 stroke:#2962ff,stroke-width:2px,stroke-dasharray: 5;
+    linkStyle 15,16,18 stroke:#f44336,stroke-width:2px,stroke-dasharray: 5;
 ```
 
+__Giao tiếp MQTT__
+
+```mermaid
+graph TD
+    %% Khai báo màu sắc
+    classDef wifiStyle fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef mqttStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
+    classDef mainStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+
+    subgraph Main_Process [main.cpp]
+        D{Vòng lặp loop}
+    end
+
+    subgraph MQTT_Module [MqttManager.cpp]
+        M_Loop[Hàm mqttMgr.loop]
+        M_Pub[Hàm publishData]
+        M_Sub[Callback: Nhận lệnh]
+    end
+
+    subgraph Broker_Server [mqtt.toolhub.app]
+        B_Up@{ shape: text, label: "Topic: .../up" }
+        B_Down@{ shape: text, label: "Topic: .../down" }
+    end
+
+    %% Luồng dữ liệu Upstream (Gửi đi)
+    D -- "Dữ liệu mới" --> M_Pub
+    M_Pub -- "L_Pub" --> B_Up
+    
+    %% Luồng dữ liệu Downstream (Nhận về)
+    B_Down -- "L_Sub" --> M_Sub
+    M_Sub -- "Lệnh: reboot" --> ESP_Reset@{ shape: circle, label: "Khởi động lại chip" }
+
+    %% Duy trì kết nối
+    D --> M_Loop
+    M_Loop -.-> J[Kiểm tra WiFi]
+
+    %% Styles & Animations
+    class MQTT_Module mqttStyle;
+    class Main_Process mainStyle;
+    
+    L_Pub@{ animation: fast }
+    L_Sub@{ animation: fast }
+    
+    linkStyle 1,2 stroke:#7b1fa2,stroke-width:2px
+    linkStyle 3,4 stroke:#4a148c,stroke-width:2px
+```
+
+### Ví dụ về nội dung MQTT
+
+- Server: mqtt.toolhub.app
+- Port: 1883
+- Protocol: mqtt
+- User: demo
+- Password: demo
+- MQTT ClientID: __dust_v2-deviceid__  (Thay đổi bằng macro __MQTT_CLIENT_ID_PREFIX__)
+- Topic __startup__ : write  (Thay đổi bằng macro __MQTT_TOPIC_STARTUP__)
+
+  ```csv
+    deviceid,ssid,mac,topic write,topic read
+  ```
+
+- Topic __dust_v2/deviceid/up__ : write với nội dung dạng (Thay đổi bằng macro __MQTT_TOPIC_UP_TEMPLATE__)
+
+  ```csv
+    pm2.5 ug/m3,pm10 ug/m3,pm2.5 AQI,pm10 AQI
+  ```
+
+- Topic __dust_v2/deviceid/down__ : read  (Thay đổi bằng macro __MQTT_TOPIC_DOWN_TEMPLATE__)
+  - Lệnh khởi động lại thiết bị
+
+    ```csv
+    reboot
+    ```
+
+![mqtt package](mqttpackage.png)

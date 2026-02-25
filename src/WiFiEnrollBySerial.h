@@ -5,8 +5,11 @@
 #include "ConfigManager.h"
 
 /**
- * @brief Đọc Serial và cập nhật cấu hình
- * Cú pháp: ssid=TenWifi, pass=MatKhau, id=MaThietBi
+ * @brief Kích hoạt chế độ nhập cấu hình từ cổng Serial.
+ *        Hàm này sẽ chặn luồng chính, đợi người dùng nhập thông tin SSID, Password và Device ID.
+ * Cú pháp: ssid=..., pass=..., id=...
+ * Thoát bằng lệnh: exit
+ * @return bool Trả về true sau khi thoát chế độ cấu hình.
  */
 bool EnrollBySerial();
 
