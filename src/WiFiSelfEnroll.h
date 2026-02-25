@@ -9,8 +9,6 @@
     #include <ESP8266WebServer.h>       /// create webserver
 #endif
 
-
-
 /// @brief the default wifi SSID
 #define SOICT_WIFI_SSID "SOICT_CORE_BOARD"
 /// @brief the default wifi password

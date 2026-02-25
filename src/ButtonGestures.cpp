@@ -1,4 +1,4 @@
-#include "buttongesture.h"
+#include "ButtonGestures.h"
 
 ButtonGesture::ButtonGesture(int pin) : _pin(pin) {}
 

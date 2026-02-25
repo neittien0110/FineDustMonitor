@@ -1,5 +1,7 @@
-#include "greetingcard.h"
-#include "main.h" // Import file cấu hình
+#include "OledBackdrop.h"
+#include "ConfigManager.h"  // Lấy thông số cấu hình để hiển thị
+#include "WiFiSelfEnroll.h" // Chỉ nhằm để lấy SSID và password mặc định
+#include "main.h" // Import version
 
 // Logo bụi mịn (Chuyển đổi từ ảnh 50x50 của bạn)
 static const unsigned char logo_dust_50x50[] = {
@@ -26,18 +28,14 @@ static const unsigned char logo_dust_50x50[] = {
 	0xff, 0xc0, 0xfc, 0x00, 0x00, 0x00, 0x3f, 0xff, 0xc0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0,
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0};
 
-void showWelcomeScreen(U8G2_SH1106_128X64_NONAME_F_HW_I2C &u8g2, const char *wifiSSID, const char *btName)
+void showWelcomeScreen(U8G2_SH1106_128X64_NONAME_F_HW_I2C &u8g2)
 {
 	u8g2.clearBuffer();
 
 	// 1. VÙNG TRẠNG THÁI (TOP)
 	u8g2.setFont(u8g2_font_5x7_tr);
 	u8g2.drawStr(2, 10, "WiFi:");
-	u8g2.drawStr(28, 10, (strlen(wifiSSID) > 0) ? wifiSSID : "OFF");
-
-	u8g2.drawStr(70, 10, "BL:");
-	u8g2.drawStr(88, 10, (strlen(btName) > 0) ? btName : "OFF");
-	u8g2.drawHLine(0, 14, 128);
+	u8g2.drawStr(28, 10, (configMgr.params.wifiEnabled)?configMgr.params.ssid.c_str():"OFF");
 
 	// 2. LOGO BÊN TRÁI (50x50)
 	u8g2.drawXBM(2, 16, 50, 50, logo_dust_50x50);
@@ -97,17 +95,17 @@ void showFlashConfig(U8G2_SH1106_128X64_NONAME_F_HW_I2C &u8g2)
 
 	int y = 25;
 	// Hiển thị SSID
-	drawSmartText(u8g2, 0, y, "ID: ", deviceID);
+	drawSmartText(u8g2, 0, y, "ID: ", configMgr.params.deviceID);
 	// Hiển thị SSID
-	drawSmartText(u8g2, 0, y, "SSID: ", wifiSSID);
+	drawSmartText(u8g2, 0, y, "SSID: ", configMgr.params.ssid);
 
 	// Hiển thị Device ID
-	drawSmartText(u8g2, 0, y, "Pass: ", wifiPass);
+	drawSmartText(u8g2, 0, y, "Pass: ", configMgr.params.password);
 
 	// --- HIỂN THỊ TRẠNG THÁI WIFI ---
 	u8g2.setCursor(0, y);
 	u8g2.print("WiFi: ");
-	if (!wifiEnabled)
+	if (!configMgr.params.wifiEnabled)
 	{
 		u8g2.print("OFF");
 	}
@@ -128,7 +126,7 @@ void showFlashConfig(U8G2_SH1106_128X64_NONAME_F_HW_I2C &u8g2)
 
 
 
-void showAPConfig(U8G2_SH1106_128X64_NONAME_F_HW_I2C &u8g2, char * apname, char * password )
+void showAPConfig(U8G2_SH1106_128X64_NONAME_F_HW_I2C &u8g2)
 {
 	u8g2.clearBuffer();
 
@@ -137,14 +135,15 @@ void showAPConfig(U8G2_SH1106_128X64_NONAME_F_HW_I2C &u8g2, char * apname, char 
 	u8g2.setCursor(0, 10);
 	u8g2.print("--- Access Point ---");
 
-	int y = 25;
 	// Hiển thị SSID
-	drawSmartText(u8g2, 0, y, "AP: ", apname);
+	u8g2.drawStr(0, 25, "AP:");
+	u8g2.drawStr(17, 25, SOICT_WIFI_SSID);
 	// Hiển thị SSID
-	drawSmartText(u8g2, 0, y, "Password: ", password);
+	u8g2.drawStr(0, 38, "P:");
+	u8g2.drawStr(15, 38, SOICT_WIFI_PASSWORD);	
 
 	// Hiển thị Device ID
-	u8g2.drawStr(0, y, "IP: 192.168.15.1");
+	u8g2.drawStr(0, 50, "IP: 192.168.15.1");
 
 	u8g2.sendBuffer();
 }
