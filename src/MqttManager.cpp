@@ -46,7 +46,7 @@ bool MqttManager::setup() {
 
 
     int retry = 0;
-    Serial.println(F("Kiểm tra MQTT Broker duy nhất khi khởi động.."));
+    Serial.println(F("Kiểm tra MQTT Broker duy nhat khi khoi dong.."));
     String mqttClientId = MQTT_CLIENT_ID_PREFIX + configMgr.params.deviceID;
     while (!client.connected() && retry < 7) { // Thử kết nối tối đa 7 lần
         lastReconnectAttemptStatus = client.connect(mqttClientId.c_str(), MQTT_USER, MQTT_PASS);

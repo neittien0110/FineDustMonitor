@@ -272,12 +272,23 @@ void setup()
   // 8. Mode hoạt động đầu tiên
   g_mode = MODE_AQI;
 
+  //9A. Làm giả địa chỉ MAC
+  Se tNewMac(MAC_SPOOFING_ADDRESS);
+
   // 9. Bắt đầu khởi tạo internet
   if (configMgr.params.wifiEnabled) {
     // Kết nối lần đầu
     CheckAndEstablishWiFiConnection();
+    Serial.print("Trạng thái wifi -setup: ");
+    Serial.println(wifiStatus?"Ok":"Dis");    
 
-    // Thiết lập MQTT
+    if (wifiStatus) {
+      //wifiStatus = isInternetReady();
+      Serial.print("Thử nối internet: ");
+      Serial.println(wifiStatus?"Ok":"Dis");
+    }
+
+    // Thiết lập MQTT nếu có internet thật sự
     mqttMgr.setup(); // Khởi tạo MQTT (set server, callback, topic)
   }
 

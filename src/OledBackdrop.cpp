@@ -112,7 +112,7 @@ void showFlashConfig(U8G2_SH1106_128X64_NONAME_F_HW_I2C &u8g2, const char *moret
 	{
 		if (wifiStatus)
 		{
-			u8g2.print("okay [V]");
+			u8g2.print(WiFi.localIP().toString());
 		}
 		else
 		{

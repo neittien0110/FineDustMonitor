@@ -79,6 +79,7 @@ public:
     void publishBin(float v1, float v2, float v3, float v4);
 };
 
+/** Biến toàn cục quản lý MQTT */
 extern MqttManager mqttMgr;
 
 #endif
